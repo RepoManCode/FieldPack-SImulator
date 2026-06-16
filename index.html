@@ -409,6 +409,9 @@ function pol(pct, radius) {
   const ang = (135 + pct * 2.7) * Math.PI / 180;
   return [CX + radius * Math.cos(ang), CY + radius * Math.sin(ang)];
 }
+// x-coordinates of the two true arc ends (0%/empty and 100%/full), used to
+// anchor the below-arc "to empty"/"to full" readout under the correct end.
+const ARC_END_X = { empty: pol(0, R)[0], full: pol(100, R)[0] };
 function arcPath(segStart, segEnd, radius) {
   radius = radius || R;
   if (segEnd <= segStart) return '';
@@ -437,16 +440,19 @@ let ms0in, ms0min, ms15in, ms15min, ms30in, ms30min, ms45in, ms45min, ms60in, ms
 function initGauge() {
   const svg = document.getElementById('gaugeSvg');
 
-  // background tracks
+  // background tracks — flat (butt) caps so every segment, including the
+  // two true ends of the whole arc, terminates in a straight edge like the
+  // breaks between segments, instead of a rounded cap.
   SEGS.forEach(([s,e]) => {
-    svg.appendChild(el('path', { d: arcPath(s,e), stroke:'#c0bdb4', 'stroke-width':16, fill:'none', 'stroke-linecap':'round' }));
+    svg.appendChild(el('path', { d: arcPath(s,e), stroke:'#c0bdb4', 'stroke-width':16, fill:'none', 'stroke-linecap':'butt' }));
   });
 
-  // guide spokes at the break points (25/50/75) — run from near the inside
-  // time-milestone labels out past the outside Ah tick labels, so it's
-  // visually clear which inside time value lines up with which outside
-  // Ah value. Drawn before the labels/ticks so it sits behind them.
-  [25,50,75].forEach(pct => {
+  // guide spokes at the break points (25/50/75) AND the two flat arc ends
+  // (0/100) — run from near the inside time-milestone labels out past the
+  // outside Ah tick labels, bisecting the arc band so it's visually clear
+  // which inside time value (and which arc terminus) lines up with which
+  // outside Ah value. Drawn before the labels/ticks so it sits behind them.
+  [0,25,50,75,100].forEach(pct => {
     const [x1,y1] = pol(pct, 54);
     const [x2,y2] = pol(pct, R+27);
     svg.appendChild(el('line', { x1:x1.toFixed(2), y1:y1.toFixed(2), x2:x2.toFixed(2), y2:y2.toFixed(2), stroke:'#c7c4b8', 'stroke-width':1, 'stroke-dasharray':'1,3' }));
@@ -459,9 +465,9 @@ function initGauge() {
     svg.appendChild(el('line', { x1:x1.toFixed(2), y1:y1.toFixed(2), x2:x2.toFixed(2), y2:y2.toFixed(2), stroke:'#eae8e0', 'stroke-width':3 }));
   });
 
-  // active fill paths (created empty, filled in update)
+  // active fill paths (created empty, filled in update) — same flat caps
   fillPathEls = SEGS.map(() => {
-    const p = el('path', { d:'', stroke:'#151515', 'stroke-width':16, fill:'none', 'stroke-linecap':'round' });
+    const p = el('path', { d:'', stroke:'#151515', 'stroke-width':16, fill:'none', 'stroke-linecap':'butt' });
     svg.appendChild(p);
     return p;
   });
@@ -581,23 +587,33 @@ function updateDisplay() {
   statusTextEl.textContent = S.statusLabel.toLowerCase();
   ahLineEl.textContent = `${S.currentAh.toFixed(1)} Ah  of  ${S.capacityAh} Ah`;
 
-  // below-arc time
+  // below-arc time — anchored under the arc end it actually refers to
+  // (right end = full/100%, left end = empty/0%) so the dashed bisecting
+  // guide spoke through that end visually ties back to this readout.
+  let belowX = CX;
   if (S.statusLabel === 'Full') {
     belowNumEl.textContent = '—';
     belowLabelEl.textContent = 'FULL';
+    belowX = ARC_END_X.full;
   } else if (S.statusLabel === 'Empty') {
     belowNumEl.textContent = '—';
     belowLabelEl.textContent = 'EMPTY';
+    belowX = ARC_END_X.empty;
   } else if (S.isCharging && S.timeToFullMin != null) {
     belowNumEl.textContent = formatTime(S.timeToFullMin);
     belowLabelEl.textContent = 'TO FULL';
+    belowX = ARC_END_X.full;
   } else if (S.isDischarging && S.timeToEmptyMin != null) {
     belowNumEl.textContent = formatTime(S.timeToEmptyMin);
     belowLabelEl.textContent = 'TO EMPTY';
+    belowX = ARC_END_X.empty;
   } else {
     belowNumEl.textContent = '—';
     belowLabelEl.textContent = 'IDLE';
+    belowX = CX;
   }
+  belowNumEl.setAttribute('x', belowX.toFixed(1));
+  belowLabelEl.setAttribute('x', belowX.toFixed(1));
 
   // top bar name
   document.getElementById('topUnitName').textContent = S.name;
