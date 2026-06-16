@@ -1,0 +1,893 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Battery Display Simulator — Concept A</title>
+<style>
+  :root{
+    --cream:#eae8e0; --ink:#151515; --ink2:#111; --track:#c0bdb4;
+    --g1:#444; --g2:#888; --g3:#999; --g4:#aaa; --g5:#bbb; --g6:#ccc;
+    --green:#3c8a4a; --amber:#c98a1f; --red:#c0392b;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+    background:#d9d7ce; color:#222; padding:24px;
+  }
+  .app{ display:flex; gap:28px; flex-wrap:wrap; align-items:flex-start; max-width:1280px; margin:0 auto; }
+
+  /* ---------- DEVICE / DISPLAY ---------- */
+  .display-wrap{ flex:0 0 auto; }
+  .device{
+    width:660px; background:var(--cream); border-radius:18px; overflow:hidden;
+    box-shadow:0 12px 30px rgba(0,0,0,.18); border:1px solid #cfccc1;
+  }
+  .topbar{
+    background:#0c0c0c; color:#eee; height:40px; display:flex; align-items:center;
+    justify-content:space-between; padding:0 14px; font-size:12px; letter-spacing:.3px;
+  }
+  .topbar .unit-name{ font-weight:700; }
+  .topbar .chip-nav{ display:flex; gap:6px; }
+  .topbar .chip{
+    width:20px; height:20px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+    font-size:9px; font-weight:700; border:1px solid #555; color:#999;
+  }
+  .topbar .chip.active{ background:#eee; color:#111; border-color:#eee; }
+  .topbar .chip.dashed{ border-style:dashed; }
+  .topbar .mesh{ color:#888; font-size:11px; }
+  .panels{ display:flex; }
+  .gauge-panel{ width:365px; height:252px; }
+  .right-panel{ width:295px; height:252px; display:flex; flex-direction:column; }
+
+  .rp-status{ height:95px; padding:12px 16px 0 16px; border-bottom:1px solid #d8d5cb; }
+  .rp-arrow-row{ display:flex; align-items:center; gap:6px; }
+  .rp-arrow-row #statusWord2{ font-size:23px; font-weight:900; color:#151515; }
+  .dir-arrow{ transition:transform .25s ease; }
+  .dir-arrow polygon{ fill:#151515; }
+  .dir-arrow.idle polygon{ fill:#ccc; }
+  .dir-arrow.discharge{ transform:rotate(180deg); }
+  .rp-pill{
+    display:inline-block; margin-top:6px; background:#151515; color:#eae8e0; font-size:11px;
+    font-weight:700; padding:3px 10px; border-radius:11px; letter-spacing:.3px;
+  }
+  .rp-intdc{ margin-top:7px; font-size:11px; color:#888; display:flex; gap:6px; }
+  .rp-intdc span#intDcVoltage{ color:#444; font-weight:700; }
+
+  .rp-drawin{ height:78px; display:flex; border-bottom:1px solid #d8d5cb; }
+  .rp-drawin .col{ flex:1; padding:10px 0 0 16px; }
+  .rp-drawin .lbl{ font-size:10px; color:#999; text-transform:uppercase; letter-spacing:1px; }
+  .rp-drawin .num{ font-size:32px; font-weight:800; color:#111; line-height:1.1; }
+  .rp-drawin .num.small{ font-size:22px; }
+  .rp-drawin .num.dim{ color:#c8c8c8; }
+
+  .rp-power{ flex:1; padding:8px 16px 10px 16px; }
+  .rp-power .lbl{ font-size:9px; color:#999; letter-spacing:2px; font-weight:700; }
+  .power-row{ display:flex; align-items:center; margin-top:4px; gap:6px; }
+  .power-in{ width:80px; display:flex; flex-direction:column; gap:2px; }
+  .prow{ display:flex; justify-content:space-between; font-size:9px; color:#555; }
+  .prow span:last-child{ font-weight:800; color:#111; }
+  .prow.dim span:last-child{ color:#c8c8c8; }
+  .power-icon{ display:flex; flex-direction:column; align-items:center; width:36px; }
+  .power-icon .mini-pct{ font-size:9px; font-weight:700; color:#444; margin-top:2px; }
+  .power-out{ flex:1; display:grid; grid-template-columns:1fr 1fr; gap:2px 8px; }
+  .usb-row{ grid-column:1 / span 2; display:flex; align-items:center; gap:4px; margin-top:3px; }
+  .usb-dot{ width:8px; height:8px; border-radius:50%; background:#e3e1d8; border:1.4px solid #bbb; }
+  .usb-dot.filled{ background:#444; border-color:#444; }
+  .usb-lbl{ font-size:8px; color:#999; margin-right:6px; }
+
+  /* ---------- CONTROLS ---------- */
+  .controls-wrap{ flex:1 1 380px; min-width:340px; max-width:480px; }
+  .controls-wrap h2{ font-size:16px; margin:0 0 4px; }
+  .controls-wrap .sub{ font-size:12px; color:#777; margin-bottom:14px; }
+  .panel{
+    background:#fff; border:1px solid #e0ddd2; border-radius:10px; padding:14px 16px; margin-bottom:14px;
+  }
+  .panel h3{ font-size:12px; text-transform:uppercase; letter-spacing:1px; color:#888; margin:0 0 10px; }
+  .row{ display:flex; align-items:center; gap:8px; margin-bottom:9px; }
+  .row label{ flex:0 0 108px; font-size:12.5px; color:#333; }
+  .row input[type=range]{ flex:1; }
+  .row input[type=number], .row input[type=text]{
+    flex:1; padding:5px 7px; border:1px solid #d6d3c8; border-radius:5px; font-size:12.5px;
+  }
+  .row .val{ flex:0 0 52px; text-align:right; font-size:12.5px; font-weight:700; color:#222; font-variant-numeric:tabular-nums; }
+  .btn-group{ display:flex; gap:5px; flex:1; }
+  .btn-group button{
+    flex:1; padding:5px 4px; border:1px solid #d6d3c8; background:#f6f5f0; border-radius:5px;
+    font-size:11.5px; cursor:pointer; color:#444;
+  }
+  .btn-group button.active{ background:#151515; color:#eae8e0; border-color:#151515; }
+  .toggle-row{ display:flex; align-items:center; justify-content:space-between; margin-bottom:7px; font-size:12.5px; }
+  .switch{ position:relative; width:34px; height:18px; flex:0 0 34px; }
+  .switch input{ opacity:0; width:0; height:0; }
+  .slider-pill{ position:absolute; inset:0; background:#d6d3c8; border-radius:10px; transition:.2s; cursor:pointer; }
+  .slider-pill:before{ content:""; position:absolute; width:14px; height:14px; left:2px; top:2px; background:#fff; border-radius:50%; transition:.2s; }
+  .switch input:checked + .slider-pill{ background:#151515; }
+  .switch input:checked + .slider-pill:before{ transform:translateX(16px); }
+  .meter{ margin-bottom:9px; }
+  .meter .meter-top{ display:flex; justify-content:space-between; font-size:11.5px; color:#555; margin-bottom:3px; }
+  .meter-bar{ height:7px; background:#eceae2; border-radius:4px; overflow:hidden; }
+  .meter-bar .fill{ height:100%; background:var(--green); width:0%; transition:width .2s; }
+  .meter-bar .fill.warn{ background:var(--amber); }
+  .meter-bar .fill.over{ background:var(--red); }
+  .warning-banner{
+    background:#fbe9e7; color:#a83a2a; font-size:11.5px; padding:6px 9px; border-radius:6px; margin-top:6px;
+  }
+  .status-grid{ display:grid; grid-template-columns:1fr 1fr; gap:8px; font-size:12px; }
+  .status-grid div{ background:#f6f5f0; border-radius:6px; padding:7px 9px; }
+  .status-grid .k{ color:#999; font-size:10px; text-transform:uppercase; letter-spacing:.5px; }
+  .status-grid .v{ font-weight:800; font-size:14px; color:#222; margin-top:2px; }
+  .preset-row{ display:flex; gap:6px; flex-wrap:wrap; }
+  .preset-row button{
+    flex:1; min-width:90px; padding:7px 6px; border:1px solid #d6d3c8; background:#f6f5f0;
+    border-radius:6px; font-size:12px; cursor:pointer;
+  }
+  .preset-row button:hover{ background:#ece9de; }
+  #playPauseBtn.is-playing{ background:#151515; color:#eae8e0; border-color:#151515; }
+  .elapsed-readout{ flex:1; text-align:left; font-size:14px; font-weight:800; color:#222; font-variant-numeric:tabular-nums; }
+  .chart-wrap{ margin-top:10px; border:1px solid #ece9de; border-radius:6px; padding:6px 6px 2px; background:#fbfaf6; }
+  .chart-wrap svg{ display:block; width:100%; height:80px; }
+  .chart-empty-hint{ font-size:11px; color:#aaa; text-align:center; padding:30px 0; }
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <div class="display-wrap">
+    <div class="device">
+      <div class="topbar">
+        <div class="unit-name" id="topUnitName">Battery Unit A3</div>
+        <div class="chip-nav">
+          <div class="chip">A1</div>
+          <div class="chip">A2</div>
+          <div class="chip active">A3</div>
+          <div class="chip dashed">B1</div>
+        </div>
+        <div class="mesh">Mesh · 4 ●</div>
+      </div>
+      <div class="panels">
+        <div class="gauge-panel"><svg id="gaugeSvg" viewBox="0 0 365 252" width="365" height="252"></svg></div>
+        <div class="right-panel">
+          <div class="rp-status">
+            <div class="rp-arrow-row">
+              <svg class="dir-arrow" id="dirArrowSvg" viewBox="0 0 24 24" width="18" height="18"><polygon id="dirArrowShape" points="12,4 20,18 4,18"/></svg>
+              <span id="statusWord2">Charging</span>
+            </div>
+            <div class="rp-pill">120V AC</div>
+            <div class="rp-intdc"><span>Int. DC</span><span id="intDcVoltage">48.2V</span></div>
+          </div>
+          <div class="rp-drawin">
+            <div class="col">
+              <div class="lbl">Draw</div>
+              <div class="num dim" id="drawNum">0A</div>
+            </div>
+            <div class="col">
+              <div class="lbl">In</div>
+              <div class="num" id="inNum">60A</div>
+            </div>
+          </div>
+          <div class="rp-power">
+            <div class="lbl">POWER</div>
+            <div class="power-row">
+              <div class="power-in">
+                <div class="prow"><span>Bates</span><span id="inBatesVal">42A</span></div>
+                <div class="prow"><span>Edison</span><span id="inEdisonVal">18A</span></div>
+              </div>
+              <div class="power-icon">
+                <svg viewBox="0 0 22 46" width="22" height="46">
+                  <rect x="8" y="1" width="6" height="4" fill="#aaa"/>
+                  <rect x="1" y="5" width="20" height="40" rx="2" fill="none" stroke="#aaa" stroke-width="1.5"/>
+                  <rect id="miniBattFill" x="2.5" y="44.5" width="17" height="0" fill="#151515"/>
+                </svg>
+                <div class="mini-pct" id="miniBattPct">37%</div>
+              </div>
+              <div class="power-out">
+                <div class="prow" id="outBatesRow"><span>Bates</span><span id="outBatesVal">0A</span></div>
+                <div class="prow" id="outOut1Row"><span>Out1</span><span id="outOut1Val">14A</span></div>
+                <div class="prow" id="outOut2Row"><span>Out2</span><span id="outOut2Val">6A</span></div>
+                <div class="prow" id="outOut3Row"><span>Out3</span><span id="outOut3Val">0A</span></div>
+                <div class="usb-row">
+                  <span class="usb-dot filled" id="usbA1Dot"></span><span class="usb-dot filled" id="usbA2Dot"></span><span class="usb-lbl">A</span>
+                  <span class="usb-dot" id="usbC1Dot"></span><span class="usb-dot" id="usbC2Dot"></span><span class="usb-lbl">C</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="controls-wrap">
+    <h2>Simulator Controls</h2>
+    <div class="sub">Adjust assumptions and live inputs/outputs — the display updates in real time.</div>
+
+    <div class="panel">
+      <h3>Quick Scenarios</h3>
+      <div class="preset-row">
+        <button onclick="applyPreset('idle')">Idle</button>
+        <button onclick="applyPreset('fastcharge')">Fast Charge</button>
+        <button onclick="applyPreset('heavyload')">Heavy Load</button>
+        <button onclick="applyPreset('balanced')">Balanced</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>Time Simulation</h3>
+      <div class="row">
+        <label>Speed</label>
+        <div class="btn-group" id="speedBtns">
+          <button data-v="1">1x</button>
+          <button data-v="2">2x</button>
+          <button data-v="10">10x</button>
+          <button data-v="60" class="active">60x</button>
+          <button data-v="100">100x</button>
+        </div>
+      </div>
+      <div class="row">
+        <label>Elapsed</label>
+        <div class="elapsed-readout" id="elapsedTime">00:00:00</div>
+      </div>
+      <div class="preset-row">
+        <button id="playPauseBtn" onclick="togglePlay()">▶ Play</button>
+        <button onclick="resetTime()">Reset Time</button>
+      </div>
+      <div class="chart-wrap">
+        <svg id="socChart" viewBox="0 0 300 80"></svg>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>Assumptions (Hardware Spec)</h3>
+      <div class="row"><label>Unit name</label><input type="text" id="ctrlName" value="Battery Unit A3"></div>
+      <div class="row"><label>Capacity (Ah)</label><input type="number" id="ctrlCapacity" value="60" min="1" max="999" step="1"></div>
+      <div class="row"><label>Voltage @ 0%</label><input type="number" id="ctrlVEmpty" value="45.8" step="0.1"><span class="val">V</span></div>
+      <div class="row"><label>Voltage @ 100%</label><input type="number" id="ctrlVFull" value="52.3" step="0.1"><span class="val">V</span></div>
+      <div class="row"><label>Max combined in</label><input type="number" id="ctrlMaxIn" value="80" step="1"><span class="val">A</span></div>
+      <div class="row"><label>Max combined out</label><input type="number" id="ctrlMaxOut" value="80" step="1"><span class="val">A</span></div>
+      <div class="row"><label>Edison out max</label><input type="number" id="ctrlEdisonOutMax" value="60" step="1"><span class="val">A</span></div>
+      <div class="row"><label>USB‑A (each)</label><input type="number" id="ctrlUsbAWatts" value="12" step="1"><span class="val">W</span></div>
+      <div class="row"><label>USB‑C (each)</label><input type="number" id="ctrlUsbCWatts" value="65" step="1"><span class="val">W</span></div>
+    </div>
+
+    <div class="panel">
+      <h3>State of Charge</h3>
+      <div class="row"><label>SoC</label><input type="range" id="ctrlSoc" min="0" max="100" value="37"><span class="val" id="ctrlSocVal">37%</span></div>
+      <div class="sub" style="margin:0;">Drag to set the starting charge. Locked while time is playing — SoC is then driven by net current.</div>
+    </div>
+
+    <div class="panel">
+      <h3>Charging Inputs</h3>
+      <div class="row"><label>Bates setting</label>
+        <div class="btn-group" id="batesInBtns">
+          <button data-v="0">Off</button><button data-v="30">30A</button><button data-v="60" class="active">60A</button>
+        </div>
+      </div>
+      <div class="row"><label>Bates actual</label><input type="range" id="ctrlBatesInActual" min="0" max="60" value="42"><span class="val" id="ctrlBatesInActualVal">42A</span></div>
+      <div class="row"><label>Edison setting</label>
+        <div class="btn-group" id="edisonInBtns">
+          <button data-v="0">Off</button><button data-v="12">12A</button><button data-v="15">15A</button><button data-v="20" class="active">20A</button>
+        </div>
+      </div>
+      <div class="row"><label>Edison actual</label><input type="range" id="ctrlEdisonInActual" min="0" max="20" value="18"><span class="val" id="ctrlEdisonInActualVal">18A</span></div>
+    </div>
+
+    <div class="panel">
+      <h3>Outputs</h3>
+      <div class="row"><label>Bates out</label><input type="range" id="ctrlBatesOut" min="0" max="60" value="0"><span class="val" id="ctrlBatesOutVal">0A</span></div>
+      <div class="row"><label>Edison Out 1</label><input type="range" id="ctrlOut1" min="0" max="20" value="14"><span class="val" id="ctrlOut1Val">14A</span></div>
+      <div class="row"><label>Edison Out 2</label><input type="range" id="ctrlOut2" min="0" max="20" value="6"><span class="val" id="ctrlOut2Val">6A</span></div>
+      <div class="row"><label>Edison Out 3</label><input type="range" id="ctrlOut3" min="0" max="20" value="0"><span class="val" id="ctrlOut3Val">0A</span></div>
+      <div class="toggle-row">USB‑A 1
+        <label class="switch"><input type="checkbox" id="ctrlUsbA1" checked><span class="slider-pill"></span></label>
+      </div>
+      <div class="toggle-row">USB‑A 2
+        <label class="switch"><input type="checkbox" id="ctrlUsbA2" checked><span class="slider-pill"></span></label>
+      </div>
+      <div class="toggle-row">USB‑C 1
+        <label class="switch"><input type="checkbox" id="ctrlUsbC1"><span class="slider-pill"></span></label>
+      </div>
+      <div class="toggle-row">USB‑C 2
+        <label class="switch"><input type="checkbox" id="ctrlUsbC2"><span class="slider-pill"></span></label>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>Constraints</h3>
+      <div class="meter">
+        <div class="meter-top"><span>Total In</span><span id="meterInTxt">60 / 80A</span></div>
+        <div class="meter-bar"><div class="fill" id="meterIn"></div></div>
+      </div>
+      <div class="meter">
+        <div class="meter-top"><span>Edison Out Total</span><span id="meterEdisonOutTxt">20 / 60A</span></div>
+        <div class="meter-bar"><div class="fill" id="meterEdisonOut"></div></div>
+      </div>
+      <div class="meter">
+        <div class="meter-top"><span>Total Out</span><span id="meterOutTxt">20.2 / 80A</span></div>
+        <div class="meter-bar"><div class="fill" id="meterOut"></div></div>
+      </div>
+      <div id="warnings"></div>
+    </div>
+
+    <div class="panel">
+      <h3>Computed Status</h3>
+      <div class="status-grid">
+        <div><div class="k">Net Current</div><div class="v" id="statNet">+39.8A</div></div>
+        <div><div class="k">Mode</div><div class="v" id="statMode">Charging</div></div>
+        <div><div class="k">Time to Full</div><div class="v" id="statToFull">57 min</div></div>
+        <div><div class="k">Time to Empty</div><div class="v" id="statToEmpty">—</div></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+/* ===================== STATE ===================== */
+const S = {
+  name: 'Battery Unit A3',
+  capacityAh: 60, voltageEmpty: 45.8, voltageFull: 52.3,
+  maxCombinedIn: 80, maxCombinedOut: 80, edisonOutMax: 60,
+  usbAWatts: 12, usbCWatts: 65,
+  soc: 37,
+  batesInSetting: 60, batesInActual: 42,
+  edisonInSetting: 20, edisonInActual: 18,
+  batesOut: 0, out1: 14, out2: 6, out3: 0,
+  usbA1: true, usbA2: true, usbC1: false, usbC2: false,
+
+  get currentAh() { return this.soc / 100 * this.capacityAh; },
+  get voltage() { return this.voltageEmpty + (this.voltageFull - this.voltageEmpty) * (this.soc / 100); },
+  get batesIn() { return this.batesInSetting > 0 ? this.batesInActual : 0; },
+  get edisonIn() { return this.edisonInSetting > 0 ? this.edisonInActual : 0; },
+  get totalIn() { return this.batesIn + this.edisonIn; },
+  get edisonOutTotal() { return this.out1 + this.out2 + this.out3; },
+  get usbWatts() { return (this.usbA1?this.usbAWatts:0)+(this.usbA2?this.usbAWatts:0)+(this.usbC1?this.usbCWatts:0)+(this.usbC2?this.usbCWatts:0); },
+  get usbAmps() { return this.usbWatts / 120; },
+  get totalOut() { return this.batesOut + this.edisonOutTotal + this.usbAmps; },
+  get netCurrent() { return this.totalIn - this.totalOut; },
+  get isCharging() { return this.netCurrent > 0.5; },
+  get isDischarging() { return this.netCurrent < -0.5; },
+  get statusLabel() {
+    if (this.soc >= 100 && this.netCurrent > 0.5) return 'Full';
+    if (this.soc <= 0 && this.netCurrent < -0.5) return 'Empty';
+    return this.isCharging ? 'Charging' : this.isDischarging ? 'Discharging' : 'Idle';
+  },
+  get timeToFullMin() {
+    if (!this.isCharging || this.soc >= 100) return null;
+    return Math.round((this.capacityAh - this.currentAh) / this.netCurrent * 60);
+  },
+  get timeToEmptyMin() {
+    if (!this.isDischarging || this.soc <= 0) return null;
+    return Math.round(this.currentAh / Math.abs(this.netCurrent) * 60);
+  },
+  timeToMilestone(targetAh) {
+    const delta = targetAh - this.currentAh;
+    if (Math.abs(this.netCurrent) < 0.5) return null;
+    if (this.netCurrent > 0 && delta <= 0) return null;
+    if (this.netCurrent < 0 && delta >= 0) return null;
+    const mins = Math.round(delta / this.netCurrent * 60);
+    return mins > 0 ? mins : null;
+  }
+};
+
+/* ===================== GAUGE GEOMETRY ===================== */
+const CX = 182, CY = 142, R = 108;
+const GAP = 3 / 270 * 100; // ~1.111
+const SEGS = [[0,25-GAP],[25+GAP,50-GAP],[50+GAP,75-GAP],[75+GAP,100]];
+
+function pol(pct, radius) {
+  const ang = (135 + pct * 2.7) * Math.PI / 180;
+  return [CX + radius * Math.cos(ang), CY + radius * Math.sin(ang)];
+}
+function arcPath(segStart, segEnd, radius) {
+  radius = radius || R;
+  if (segEnd <= segStart) return '';
+  const [x1,y1] = pol(segStart, radius);
+  const [x2,y2] = pol(segEnd, radius);
+  const sweepDeg = (segEnd - segStart) * 2.7;
+  const large = sweepDeg > 180 ? 1 : 0;
+  return `M ${x1.toFixed(2)} ${y1.toFixed(2)} A ${radius} ${radius} 0 ${large} 1 ${x2.toFixed(2)} ${y2.toFixed(2)}`;
+}
+function buildFillPaths(soc) {
+  return SEGS.map(([s,e]) => soc <= s ? '' : arcPath(s, Math.min(soc, e)));
+}
+
+const NS = 'http://www.w3.org/2000/svg';
+function el(tag, attrs) {
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  return e;
+}
+
+let fillPathEls = [];
+let knobRing, knobDot;
+let pctNumEl, pctSignEl, statusTextEl, ahLineEl, belowNumEl, belowLabelEl;
+let ms0in, ms0min, ms15in, ms15min, ms30in, ms30min, ms45in, ms45min, ms60in, ms60min;
+
+function initGauge() {
+  const svg = document.getElementById('gaugeSvg');
+
+  // background tracks
+  SEGS.forEach(([s,e]) => {
+    svg.appendChild(el('path', { d: arcPath(s,e), stroke:'#c0bdb4', 'stroke-width':16, fill:'none', 'stroke-linecap':'round' }));
+  });
+
+  // break ticks at 25/50/75
+  [25,50,75].forEach(pct => {
+    const [x1,y1] = pol(pct, R-9);
+    const [x2,y2] = pol(pct, R+9);
+    svg.appendChild(el('line', { x1:x1.toFixed(2), y1:y1.toFixed(2), x2:x2.toFixed(2), y2:y2.toFixed(2), stroke:'#eae8e0', 'stroke-width':3 }));
+  });
+
+  // active fill paths (created empty, filled in update)
+  fillPathEls = SEGS.map(() => {
+    const p = el('path', { d:'', stroke:'#151515', 'stroke-width':16, fill:'none', 'stroke-linecap':'round' });
+    svg.appendChild(p);
+    return p;
+  });
+
+  // outside Ah labels
+  const labels = [[0,'0'],[25,'15'],[50,'30'],[75,'45'],[100,'60']];
+  labels.forEach(([pct,txt]) => {
+    const [x,y] = pol(pct, R+22);
+    svg.appendChild(el('text', { x:x.toFixed(2), y:y.toFixed(2), 'text-anchor':'middle', 'dominant-baseline':'middle', 'font-size':11, fill:'#999' })).textContent = txt;
+  });
+
+  // knob
+  knobRing = el('circle', { r:13, fill:'#eae8e0', stroke:'#151515', 'stroke-width':2.5 });
+  knobDot = el('circle', { r:5, fill:'#151515' });
+  svg.appendChild(knobRing); svg.appendChild(knobDot);
+
+  // center readout
+  pctNumEl = el('text', { x:175, y:150, 'text-anchor':'end', 'font-size':65, 'font-weight':900, fill:'#111' });
+  pctSignEl = el('text', { x:178, y:122, 'text-anchor':'start', 'font-size':30, 'font-weight':900, fill:'#111' });
+  pctSignEl.textContent = '%';
+  statusTextEl = el('text', { x:182, y:168, 'text-anchor':'middle', 'font-size':13, 'font-weight':700, fill:'#444' });
+  ahLineEl = el('text', { x:182, y:183, 'text-anchor':'middle', 'font-size':10.5, fill:'#888' });
+  svg.appendChild(pctNumEl); svg.appendChild(pctSignEl); svg.appendChild(statusTextEl); svg.appendChild(ahLineEl);
+
+  // below-arc time
+  belowNumEl = el('text', { x:182, y:233, 'text-anchor':'middle', 'font-size':19, 'font-weight':900, fill:'#333' });
+  belowLabelEl = el('text', { x:182, y:247, 'text-anchor':'middle', 'font-size':8, 'letter-spacing':2.5, fill:'#aaa' });
+  svg.appendChild(belowNumEl); svg.appendChild(belowLabelEl);
+
+  // inside milestone labels
+  function msPair(x1,y1,x2,y2) {
+    const a = el('text', { x:x1, y:y1, 'text-anchor':'middle', 'font-size':10, fill:'#aaa' });
+    const b = el('text', { x:x2, y:y2, 'text-anchor':'middle', 'font-size':11, 'font-weight':700, fill:'#777' });
+    svg.appendChild(a); svg.appendChild(b);
+    return [a,b];
+  }
+  [ms30in, ms30min] = msPair(182,63,182,76);
+  [ms45in, ms45min] = msPair(250,109,250,122);
+  [ms60in, ms60min] = msPair(240,197,240,209);
+  [ms15in, ms15min] = msPair(114,109,114,122);
+  [ms0in, ms0min] = msPair(124,197,124,209);
+  ms30in.textContent = 'in'; ms45in.textContent = 'in'; ms60in.textContent = 'in';
+  ms15in.textContent = 'in'; ms0in.textContent = 'in';
+}
+
+/* ===================== FORMAT HELPERS ===================== */
+function formatTime(mins) {
+  if (mins == null) return null;
+  if (mins < 60) return mins + 'min';
+  const h = Math.floor(mins/60), m = mins % 60;
+  return h + 'h ' + m + 'm';
+}
+
+/* ===================== DISPLAY UPDATE ===================== */
+function updateDisplay() {
+  // fills
+  const paths = buildFillPaths(S.soc);
+  fillPathEls.forEach((p,i) => p.setAttribute('d', paths[i]));
+
+  // knob
+  const [kx,ky] = pol(S.soc, R);
+  knobRing.setAttribute('cx', kx.toFixed(2)); knobRing.setAttribute('cy', ky.toFixed(2));
+  knobDot.setAttribute('cx', kx.toFixed(2)); knobDot.setAttribute('cy', ky.toFixed(2));
+
+  // milestone labels (0/15/30/45/60 Ah) — only show the ones ahead in the
+  // current direction of travel; charging shows ascending levels toward
+  // full, discharging shows descending levels toward empty. Irrelevant
+  // (already-passed, or wrong-direction) levels are hidden entirely.
+  // Computed BEFORE the center readout so the big % number can be sized
+  // to clear however many of these end up visible.
+  let visibleMilestoneCount = 0;
+  function setMilestone(inEl, minEl, targetAh) {
+    const mins = S.timeToMilestone(targetAh);
+    if (mins == null) {
+      inEl.style.display = 'none';
+      minEl.style.display = 'none';
+    } else {
+      inEl.style.display = '';
+      minEl.style.display = '';
+      minEl.textContent = formatTime(mins);
+      visibleMilestoneCount++;
+    }
+  }
+  setMilestone(ms0in, ms0min, 0);
+  setMilestone(ms15in, ms15min, 15);
+  setMilestone(ms30in, ms30min, 30);
+  setMilestone(ms45in, ms45min, 45);
+  setMilestone(ms60in, ms60min, 60);
+
+  // center readout — the big % stays anchored at the gauge's true center
+  // (CX, CY); only its font size shrinks as more inside-arc time labels
+  // appear, so it never has to move to dodge them.
+  const NUM_SIZES = [65, 60, 54, 48, 42]; // indexed by visibleMilestoneCount (0-4)
+  const fontSize = NUM_SIZES[Math.min(visibleMilestoneCount, NUM_SIZES.length - 1)];
+  const signSize = Math.round(fontSize * 30/65 * 10) / 10;
+  const baselineY = CY + fontSize * 0.123;
+  const signY = baselineY - fontSize * 0.4308;
+
+  const socDigits = String(Math.round(S.soc)).length;
+  const numWidth = socDigits * 0.62 * fontSize;
+  const signWidth = 0.55 * signSize;
+  const gap = 3;
+  const totalWidth = numWidth + gap + signWidth;
+  const leftX = CX - totalWidth / 2;
+  const numEndX = leftX + numWidth;
+  const signStartX = numEndX + gap;
+
+  pctNumEl.setAttribute('font-size', fontSize);
+  pctNumEl.setAttribute('x', numEndX.toFixed(1));
+  pctNumEl.setAttribute('y', baselineY.toFixed(1));
+  pctNumEl.textContent = Math.round(S.soc);
+
+  pctSignEl.setAttribute('font-size', signSize);
+  pctSignEl.setAttribute('x', signStartX.toFixed(1));
+  pctSignEl.setAttribute('y', signY.toFixed(1));
+
+  statusTextEl.textContent = S.statusLabel.toLowerCase();
+  ahLineEl.textContent = `${S.currentAh.toFixed(1)} Ah  of  ${S.capacityAh} Ah`;
+
+  // below-arc time
+  if (S.statusLabel === 'Full') {
+    belowNumEl.textContent = '—';
+    belowLabelEl.textContent = 'FULL';
+  } else if (S.statusLabel === 'Empty') {
+    belowNumEl.textContent = '—';
+    belowLabelEl.textContent = 'EMPTY';
+  } else if (S.isCharging && S.timeToFullMin != null) {
+    belowNumEl.textContent = formatTime(S.timeToFullMin);
+    belowLabelEl.textContent = 'TO FULL';
+  } else if (S.isDischarging && S.timeToEmptyMin != null) {
+    belowNumEl.textContent = formatTime(S.timeToEmptyMin);
+    belowLabelEl.textContent = 'TO EMPTY';
+  } else {
+    belowNumEl.textContent = '—';
+    belowLabelEl.textContent = 'IDLE';
+  }
+
+  // top bar name
+  document.getElementById('topUnitName').textContent = S.name;
+
+  // right panel — status
+  document.getElementById('statusWord2').textContent = S.statusLabel;
+  document.getElementById('intDcVoltage').textContent = S.voltage.toFixed(1) + 'V';
+  const arrowSvg = document.getElementById('dirArrowSvg');
+  arrowSvg.classList.remove('idle','discharge');
+  if (S.statusLabel === 'Idle') arrowSvg.classList.add('idle');
+  if (S.isDischarging) arrowSvg.classList.add('discharge');
+
+  // draw/in
+  const drawNum = document.getElementById('drawNum');
+  const inNum = document.getElementById('inNum');
+  drawNum.textContent = Math.round(S.totalOut) + 'A';
+  inNum.textContent = Math.round(S.totalIn) + 'A';
+  drawNum.classList.toggle('dim', S.totalOut < 0.5);
+  inNum.classList.toggle('dim', S.totalIn < 0.5);
+
+  // power summary - in
+  document.getElementById('inBatesVal').textContent = Math.round(S.batesIn) + 'A';
+  document.getElementById('inEdisonVal').textContent = Math.round(S.edisonIn) + 'A';
+
+  // power summary - out
+  const outRows = [
+    ['outBatesVal', S.batesOut, 'outBatesRow'],
+    ['outOut1Val', S.out1, 'outOut1Row'],
+    ['outOut2Val', S.out2, 'outOut2Row'],
+    ['outOut3Val', S.out3, 'outOut3Row'],
+  ];
+  outRows.forEach(([id,val,rowId]) => {
+    document.getElementById(id).textContent = Math.round(val) + 'A';
+    document.getElementById(rowId).classList.toggle('dim', val < 0.5);
+  });
+  document.getElementById('usbA1Dot').classList.toggle('filled', S.usbA1);
+  document.getElementById('usbA2Dot').classList.toggle('filled', S.usbA2);
+  document.getElementById('usbC1Dot').classList.toggle('filled', S.usbC1);
+  document.getElementById('usbC2Dot').classList.toggle('filled', S.usbC2);
+
+  // mini battery icon
+  const innerTop = 5.5, innerBottom = 44.5, innerH = innerBottom - innerTop;
+  const fillH = innerH * S.soc / 100;
+  document.getElementById('miniBattFill').setAttribute('y', (innerBottom - fillH).toFixed(2));
+  document.getElementById('miniBattFill').setAttribute('height', fillH.toFixed(2));
+  document.getElementById('miniBattPct').textContent = Math.round(S.soc) + '%';
+}
+
+/* ===================== CONTROLS UPDATE ===================== */
+function setMeter(fillId, txtId, value, max, suffix) {
+  const fill = document.getElementById(fillId);
+  const txt = document.getElementById(txtId);
+  const pct = max > 0 ? Math.min(value / max * 100, 100) : 0;
+  fill.style.width = pct + '%';
+  fill.classList.remove('warn','over');
+  if (value > max) fill.classList.add('over');
+  else if (value / max >= 0.85) fill.classList.add('warn');
+  txt.textContent = `${value.toFixed(1)} / ${max}${suffix}`;
+}
+
+function updateControls() {
+  document.getElementById('ctrlSocVal').textContent = Math.round(S.soc) + '%';
+  document.getElementById('ctrlBatesInActualVal').textContent = Math.round(S.batesInActual) + 'A';
+  document.getElementById('ctrlEdisonInActualVal').textContent = Math.round(S.edisonInActual) + 'A';
+  document.getElementById('ctrlBatesOutVal').textContent = Math.round(S.batesOut) + 'A';
+  document.getElementById('ctrlOut1Val').textContent = Math.round(S.out1) + 'A';
+  document.getElementById('ctrlOut2Val').textContent = Math.round(S.out2) + 'A';
+  document.getElementById('ctrlOut3Val').textContent = Math.round(S.out3) + 'A';
+
+  // clamp/disable actual sliders based on setting
+  const batesActualSlider = document.getElementById('ctrlBatesInActual');
+  batesActualSlider.max = S.batesInSetting;
+  batesActualSlider.disabled = S.batesInSetting === 0;
+  if (S.batesInActual > S.batesInSetting) { S.batesInActual = S.batesInSetting; batesActualSlider.value = S.batesInActual; }
+
+  const edisonActualSlider = document.getElementById('ctrlEdisonInActual');
+  edisonActualSlider.max = S.edisonInSetting;
+  edisonActualSlider.disabled = S.edisonInSetting === 0;
+  if (S.edisonInActual > S.edisonInSetting) { S.edisonInActual = S.edisonInSetting; edisonActualSlider.value = S.edisonInActual; }
+
+  // meters
+  setMeter('meterIn','meterInTxt', S.totalIn, S.maxCombinedIn, 'A');
+  setMeter('meterEdisonOut','meterEdisonOutTxt', S.edisonOutTotal, S.edisonOutMax, 'A');
+  setMeter('meterOut','meterOutTxt', S.totalOut, S.maxCombinedOut, 'A');
+
+  // warnings
+  const warnings = [];
+  if (S.edisonOutTotal > S.edisonOutMax) warnings.push(`Edison output total (${S.edisonOutTotal.toFixed(1)}A) exceeds ${S.edisonOutMax}A combined limit.`);
+  if (S.totalOut > S.maxCombinedOut) warnings.push(`Total output (${S.totalOut.toFixed(1)}A) exceeds ${S.maxCombinedOut}A combined limit.`);
+  if (S.totalIn > S.maxCombinedIn) warnings.push(`Total input (${S.totalIn.toFixed(1)}A) exceeds ${S.maxCombinedIn}A combined limit.`);
+  document.getElementById('warnings').innerHTML = warnings.map(w => `<div class="warning-banner">⚠ ${w}</div>`).join('');
+
+  // computed status
+  document.getElementById('statNet').textContent = (S.netCurrent >= 0 ? '+' : '') + S.netCurrent.toFixed(1) + 'A';
+  document.getElementById('statMode').textContent = S.statusLabel;
+  document.getElementById('statToFull').textContent = S.timeToFullMin != null ? formatTime(S.timeToFullMin) : '—';
+  document.getElementById('statToEmpty').textContent = S.timeToEmptyMin != null ? formatTime(S.timeToEmptyMin) : '—';
+}
+
+function update() {
+  updateDisplay();
+  updateControls();
+  drawChart();
+}
+
+/* ===================== TIME SIMULATION ===================== */
+let playing = false;
+let speedMultiplier = 60; // simulated seconds per real second
+let simElapsedSeconds = 0;
+let lastFrameTime = null;
+let frameCounter = 0;
+let rafId = null;
+const history = []; // {t: simElapsedSeconds, soc} samples for the sparkline
+const HISTORY_MAX = 240;
+
+function formatElapsed(totalSec) {
+  totalSec = Math.max(0, Math.floor(totalSec));
+  const d = Math.floor(totalSec / 86400);
+  const h = Math.floor((totalSec % 86400) / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  const pad = n => String(n).padStart(2, '0');
+  return (d > 0 ? d + 'd ' : '') + pad(h) + ':' + pad(m) + ':' + pad(s);
+}
+
+function updateElapsedDisplay() {
+  document.getElementById('elapsedTime').textContent = formatElapsed(simElapsedSeconds);
+}
+
+function drawChart() {
+  const svg = document.getElementById('socChart');
+  svg.innerHTML = '';
+  if (history.length < 2) {
+    svg.appendChild(el('text', { x:150, y:42, 'text-anchor':'middle', 'font-size':10, fill:'#bbb' })).textContent = 'Press Play to start charting SoC over time';
+    return;
+  }
+  const W = 300, H = 80, PAD = 4;
+  const minT = history[0].t, maxT = history[history.length - 1].t;
+  const spanT = Math.max(maxT - minT, 1);
+  // gridlines at 0/50/100%
+  [0, 50, 100].forEach(pct => {
+    const y = PAD + (1 - pct / 100) * (H - 2 * PAD);
+    svg.appendChild(el('line', { x1:0, y1:y.toFixed(1), x2:W, y2:y.toFixed(1), stroke:'#eae8e0', 'stroke-width':1 }));
+    svg.appendChild(el('text', { x:2, y:(y - 2).toFixed(1), 'font-size':7, fill:'#ccc' })).textContent = pct + '%';
+  });
+  const pts = history.map(p => {
+    const x = ((p.t - minT) / spanT) * W;
+    const y = PAD + (1 - p.soc / 100) * (H - 2 * PAD);
+    return x.toFixed(1) + ',' + y.toFixed(1);
+  }).join(' ');
+  svg.appendChild(el('polyline', { points:pts, fill:'none', stroke:'#151515', 'stroke-width':1.6 }));
+  const last = history[history.length - 1];
+  const lx = W, ly = PAD + (1 - last.soc / 100) * (H - 2 * PAD);
+  svg.appendChild(el('circle', { cx:lx.toFixed(1), cy:ly.toFixed(1), r:2.6, fill:'#151515' }));
+}
+
+function simStep(now) {
+  if (!playing) { lastFrameTime = null; rafId = null; return; }
+  if (lastFrameTime == null) lastFrameTime = now;
+  const dtRealSec = Math.min((now - lastFrameTime) / 1000, 0.25); // clamp to avoid jumps on tab refocus
+  lastFrameTime = now;
+  const dtSimSec = dtRealSec * speedMultiplier;
+  simElapsedSeconds += dtSimSec;
+
+  const dtSimHours = dtSimSec / 3600;
+  let newAh = S.currentAh + S.netCurrent * dtSimHours;
+  newAh = Math.max(0, Math.min(S.capacityAh, newAh));
+  S.soc = (newAh / S.capacityAh) * 100;
+  document.getElementById('ctrlSoc').value = S.soc;
+
+  frameCounter++;
+  if (frameCounter % 6 === 0) {
+    history.push({ t: simElapsedSeconds, soc: S.soc });
+    if (history.length > HISTORY_MAX) history.shift();
+  }
+
+  updateElapsedDisplay();
+  update();
+  rafId = requestAnimationFrame(simStep);
+}
+
+function togglePlay() {
+  playing = !playing;
+  const btn = document.getElementById('playPauseBtn');
+  btn.textContent = playing ? '⏸ Pause' : '▶ Play';
+  btn.classList.toggle('is-playing', playing);
+  document.getElementById('ctrlSoc').disabled = playing;
+  if (playing) {
+    lastFrameTime = null;
+    rafId = requestAnimationFrame(simStep);
+  } else if (rafId != null) {
+    cancelAnimationFrame(rafId);
+    rafId = null;
+  }
+}
+
+function resetTime() {
+  simElapsedSeconds = 0;
+  frameCounter = 0;
+  history.length = 0;
+  updateElapsedDisplay();
+  drawChart();
+}
+
+function wireSpeedButtons() {
+  const container = document.getElementById('speedBtns');
+  container.querySelectorAll('button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      container.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      speedMultiplier = parseFloat(btn.dataset.v);
+    });
+  });
+}
+
+/* ===================== WIRING ===================== */
+function wireRange(id, prop, isInt) {
+  const elx = document.getElementById(id);
+  elx.addEventListener('input', () => {
+    S[prop] = isInt === false ? parseFloat(elx.value) : parseFloat(elx.value);
+    update();
+  });
+}
+function wireBtnGroup(containerId, prop, actualProp, actualMax) {
+  const container = document.getElementById(containerId);
+  container.querySelectorAll('button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      container.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      S[prop] = parseFloat(btn.dataset.v);
+      update();
+    });
+  });
+}
+function wireCheckbox(id, prop) {
+  const elx = document.getElementById(id);
+  elx.addEventListener('change', () => { S[prop] = elx.checked; update(); });
+}
+function wireNumber(id, prop) {
+  const elx = document.getElementById(id);
+  elx.addEventListener('input', () => { S[prop] = parseFloat(elx.value) || 0; update(); });
+}
+function wireText(id, prop) {
+  const elx = document.getElementById(id);
+  elx.addEventListener('input', () => { S[prop] = elx.value; update(); });
+}
+
+function wireAll() {
+  wireText('ctrlName','name');
+  wireNumber('ctrlCapacity','capacityAh');
+  wireNumber('ctrlVEmpty','voltageEmpty');
+  wireNumber('ctrlVFull','voltageFull');
+  wireNumber('ctrlMaxIn','maxCombinedIn');
+  wireNumber('ctrlMaxOut','maxCombinedOut');
+  wireNumber('ctrlEdisonOutMax','edisonOutMax');
+  wireNumber('ctrlUsbAWatts','usbAWatts');
+  wireNumber('ctrlUsbCWatts','usbCWatts');
+
+  wireRange('ctrlSoc','soc');
+  wireBtnGroup('batesInBtns','batesInSetting');
+  wireRange('ctrlBatesInActual','batesInActual');
+  wireBtnGroup('edisonInBtns','edisonInSetting');
+  wireRange('ctrlEdisonInActual','edisonInActual');
+
+  wireRange('ctrlBatesOut','batesOut');
+  wireRange('ctrlOut1','out1');
+  wireRange('ctrlOut2','out2');
+  wireRange('ctrlOut3','out3');
+  wireCheckbox('ctrlUsbA1','usbA1');
+  wireCheckbox('ctrlUsbA2','usbA2');
+  wireCheckbox('ctrlUsbC1','usbC1');
+  wireCheckbox('ctrlUsbC2','usbC2');
+}
+
+/* ===================== PRESETS ===================== */
+function syncControlInputs() {
+  document.getElementById('ctrlName').value = S.name;
+  document.getElementById('ctrlCapacity').value = S.capacityAh;
+  document.getElementById('ctrlVEmpty').value = S.voltageEmpty;
+  document.getElementById('ctrlVFull').value = S.voltageFull;
+  document.getElementById('ctrlMaxIn').value = S.maxCombinedIn;
+  document.getElementById('ctrlMaxOut').value = S.maxCombinedOut;
+  document.getElementById('ctrlEdisonOutMax').value = S.edisonOutMax;
+  document.getElementById('ctrlUsbAWatts').value = S.usbAWatts;
+  document.getElementById('ctrlUsbCWatts').value = S.usbCWatts;
+
+  document.getElementById('ctrlSoc').value = S.soc;
+  document.querySelectorAll('#batesInBtns button').forEach(b => b.classList.toggle('active', parseFloat(b.dataset.v) === S.batesInSetting));
+  document.getElementById('ctrlBatesInActual').max = S.batesInSetting;
+  document.getElementById('ctrlBatesInActual').value = S.batesInActual;
+  document.querySelectorAll('#edisonInBtns button').forEach(b => b.classList.toggle('active', parseFloat(b.dataset.v) === S.edisonInSetting));
+  document.getElementById('ctrlEdisonInActual').max = S.edisonInSetting;
+  document.getElementById('ctrlEdisonInActual').value = S.edisonInActual;
+
+  document.getElementById('ctrlBatesOut').value = S.batesOut;
+  document.getElementById('ctrlOut1').value = S.out1;
+  document.getElementById('ctrlOut2').value = S.out2;
+  document.getElementById('ctrlOut3').value = S.out3;
+  document.getElementById('ctrlUsbA1').checked = S.usbA1;
+  document.getElementById('ctrlUsbA2').checked = S.usbA2;
+  document.getElementById('ctrlUsbC1').checked = S.usbC1;
+  document.getElementById('ctrlUsbC2').checked = S.usbC2;
+}
+
+function applyPreset(name) {
+  if (name === 'idle') {
+    Object.assign(S, { batesInSetting:0, batesInActual:0, edisonInSetting:0, edisonInActual:0,
+      batesOut:0, out1:0, out2:0, out3:0, usbA1:false, usbA2:false, usbC1:false, usbC2:false });
+  } else if (name === 'fastcharge') {
+    Object.assign(S, { batesInSetting:60, batesInActual:60, edisonInSetting:20, edisonInActual:20,
+      batesOut:0, out1:0, out2:0, out3:0, usbA1:false, usbA2:false, usbC1:false, usbC2:false });
+  } else if (name === 'heavyload') {
+    Object.assign(S, { batesInSetting:0, batesInActual:0, edisonInSetting:0, edisonInActual:0,
+      batesOut:40, out1:20, out2:12, out3:0, usbA1:true, usbA2:true, usbC1:true, usbC2:true });
+  } else if (name === 'balanced') {
+    Object.assign(S, { batesInSetting:60, batesInActual:42, edisonInSetting:20, edisonInActual:18,
+      batesOut:0, out1:14, out2:6, out3:0, usbA1:true, usbA2:true, usbC1:false, usbC2:false });
+  }
+  syncControlInputs();
+  update();
+}
+
+/* ===================== INIT ===================== */
+initGauge();
+wireAll();
+wireSpeedButtons();
+updateElapsedDisplay();
+update();
+</script>
+
+</body>
+</html>
