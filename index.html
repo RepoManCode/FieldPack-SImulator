@@ -412,6 +412,12 @@ function pol(pct, radius) {
 // x-coordinates of the two true arc ends (0%/empty and 100%/full), used to
 // anchor the below-arc "to empty"/"to full" readout under the correct end.
 const ARC_END_X = { empty: pol(0, R)[0], full: pol(100, R)[0] };
+// The below-arc readout is pulled in toward center from the true arc-end x
+// by this much, so its text box clears the outside Ah tick label ("0"/"60")
+// that sits further out along the same diagonal — without this inset the
+// two labels' bounding boxes overlap (the readout text covers the tick).
+const BELOW_INSET = 26;
+const BELOW_X = { empty: ARC_END_X.empty + BELOW_INSET, full: ARC_END_X.full - BELOW_INSET };
 function arcPath(segStart, segEnd, radius) {
   radius = radius || R;
   if (segEnd <= segStart) return '';
@@ -594,19 +600,19 @@ function updateDisplay() {
   if (S.statusLabel === 'Full') {
     belowNumEl.textContent = '—';
     belowLabelEl.textContent = 'FULL';
-    belowX = ARC_END_X.full;
+    belowX = BELOW_X.full;
   } else if (S.statusLabel === 'Empty') {
     belowNumEl.textContent = '—';
     belowLabelEl.textContent = 'EMPTY';
-    belowX = ARC_END_X.empty;
+    belowX = BELOW_X.empty;
   } else if (S.isCharging && S.timeToFullMin != null) {
     belowNumEl.textContent = formatTime(S.timeToFullMin);
     belowLabelEl.textContent = 'TO FULL';
-    belowX = ARC_END_X.full;
+    belowX = BELOW_X.full;
   } else if (S.isDischarging && S.timeToEmptyMin != null) {
     belowNumEl.textContent = formatTime(S.timeToEmptyMin);
     belowLabelEl.textContent = 'TO EMPTY';
-    belowX = ARC_END_X.empty;
+    belowX = BELOW_X.empty;
   } else {
     belowNumEl.textContent = '—';
     belowLabelEl.textContent = 'IDLE';
