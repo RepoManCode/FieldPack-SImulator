@@ -409,15 +409,6 @@ function pol(pct, radius) {
   const ang = (135 + pct * 2.7) * Math.PI / 180;
   return [CX + radius * Math.cos(ang), CY + radius * Math.sin(ang)];
 }
-// x-coordinates of the two true arc ends (0%/empty and 100%/full), used to
-// anchor the below-arc "to empty"/"to full" readout under the correct end.
-const ARC_END_X = { empty: pol(0, R)[0], full: pol(100, R)[0] };
-// The below-arc readout is pulled in toward center from the true arc-end x
-// by this much, so its text box clears the outside Ah tick label ("0"/"60")
-// that sits further out along the same diagonal — without this inset the
-// two labels' bounding boxes overlap (the readout text covers the tick).
-const BELOW_INSET = 26;
-const BELOW_X = { empty: ARC_END_X.empty + BELOW_INSET, full: ARC_END_X.full - BELOW_INSET };
 function arcPath(segStart, segEnd, radius) {
   radius = radius || R;
   if (segEnd <= segStart) return '';
@@ -479,7 +470,7 @@ function initGauge() {
   });
 
   // outside Ah labels
-  const labels = [[0,'0'],[25,'15'],[50,'30'],[75,'45'],[100,'60']];
+  const labels = [[0,'0 Ah'],[25,'15 Ah'],[50,'30 Ah'],[75,'45 Ah'],[100,'60 Ah']];
   labels.forEach(([pct,txt]) => {
     const [x,y] = pol(pct, R+22);
     svg.appendChild(el('text', { x:x.toFixed(2), y:y.toFixed(2), 'text-anchor':'middle', 'dominant-baseline':'middle', 'font-size':11, fill:'#999' })).textContent = txt;
@@ -593,33 +584,27 @@ function updateDisplay() {
   statusTextEl.textContent = S.statusLabel.toLowerCase();
   ahLineEl.textContent = `${S.currentAh.toFixed(1)} Ah  of  ${S.capacityAh} Ah`;
 
-  // below-arc time — anchored under the arc end it actually refers to
-  // (right end = full/100%, left end = empty/0%) so the dashed bisecting
-  // guide spoke through that end visually ties back to this readout.
-  let belowX = CX;
+  // below-arc time — always centered left-to-right between the two arc
+  // ends (at CX), regardless of charge/discharge direction, so its position
+  // doesn't shift left or right as the status changes.
   if (S.statusLabel === 'Full') {
     belowNumEl.textContent = '—';
     belowLabelEl.textContent = 'FULL';
-    belowX = BELOW_X.full;
   } else if (S.statusLabel === 'Empty') {
     belowNumEl.textContent = '—';
     belowLabelEl.textContent = 'EMPTY';
-    belowX = BELOW_X.empty;
   } else if (S.isCharging && S.timeToFullMin != null) {
     belowNumEl.textContent = formatTime(S.timeToFullMin);
     belowLabelEl.textContent = 'TO FULL';
-    belowX = BELOW_X.full;
   } else if (S.isDischarging && S.timeToEmptyMin != null) {
     belowNumEl.textContent = formatTime(S.timeToEmptyMin);
     belowLabelEl.textContent = 'TO EMPTY';
-    belowX = BELOW_X.empty;
   } else {
     belowNumEl.textContent = '—';
     belowLabelEl.textContent = 'IDLE';
-    belowX = CX;
   }
-  belowNumEl.setAttribute('x', belowX.toFixed(1));
-  belowLabelEl.setAttribute('x', belowX.toFixed(1));
+  belowNumEl.setAttribute('x', CX);
+  belowLabelEl.setAttribute('x', CX);
 
   // top bar name
   document.getElementById('topUnitName').textContent = S.name;
